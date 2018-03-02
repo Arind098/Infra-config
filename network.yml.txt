@@ -1,0 +1,264 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Creating AWS Infrastructure Using CloudFormation"
+
+##Configuring Network##
+
+Resources:
+  VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+  MyPublicSubnet:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: "10.0.0.0/24"
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: ap-south-1a
+  MyPrivateSubnet:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: "10.0.1.0/24"
+      MapPublicIpOnLaunch: false
+      AvailabilityZone: ap-south-1b
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+  GatewayToInternet:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId:
+        Ref: VPC
+      InternetGatewayId:
+        Ref: InternetGateway
+  PublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId:
+        Ref: VPC
+  PublicRoute:
+    Type: "AWS::EC2::Route"
+    DependsOn: GatewayToInternet
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId:
+        Ref: InternetGateway
+  PublicSubnetRouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId:
+        Ref: MyPublicSubnet
+      RouteTableId:
+        Ref: PublicRouteTable
+  NatGateway:
+    Type: "AWS::EC2::NatGateway"
+    DependsOn: GatewayToInternet
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          -
+            NatEIP
+          -
+            AllocationId
+      SubnetId:
+        Ref: MyPublicSubnet
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: "vpc"
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+        VpcId:
+            Ref: VPC
+  PrivateRoute:
+    Type: "AWS::EC2::Route"
+    DependsOn: NatGateway
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId:
+        Ref: NatGateway
+  PrivateSubnetRouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId:
+        Ref: MyPrivateSubnet
+      RouteTableId:
+        Ref: PrivateRouteTable
+        
+  PublicSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Public Security Group"
+      VpcId: 
+        Ref: VPC
+      SecurityGroupIngress:
+        -
+          CidrIp: "0.0.0.0/0"
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+        -
+          CidrIp: "0.0.0.0/0"
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        -
+          CidrIp: "0.0.0.0/0"
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+        - 
+          CidrIp: "0.0.0.0/0"
+          IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+
+      SecurityGroupEgress:
+        -
+          CidrIp: "0.0.0.0/0"
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+        -
+          CidrIp: "0.0.0.0/0"
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        -
+          CidrIp: "0.0.0.0/0"
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+        -
+          CidrIp: "0.0.0.0/0"
+          IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+
+  PrivateSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Private Securiy Group"
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+        -
+          SourceSecurityGroupId:
+            Ref: PublicSecurityGroup
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+        -
+          SourceSecurityGroupId:
+            Ref: PublicSecurityGroup
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        -
+          SourceSecurityGroupId:
+            Ref: PublicSecurityGroup
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+        -
+          SourceSecurityGroupId:
+            Ref: PublicSecurityGroup
+          IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+        -
+ityGroupId:
+            Ref: PublicSecurityGroup
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+        -
+          SourceSecurityGroupId:
+            Ref: PublicSecurityGroup
+          IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+        -
+          SourceSecurityGroupId:
+            Ref: ELBSecurityGroup
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+
+  ELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "LB Security Group"
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+        -
+          CidrIp: "0.0.0.0/0"
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+
+  MasterBastion:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-531a4c3c
+      InstanceType: t2.micro
+      KeyName: demo
+      SubnetId:
+        Ref: MyPublicSubnet
+      SecurityGroupIds:
+        - !Ref PublicSecurityGroup
+
+  Priv1:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-531a4c3c
+      InstanceType: t2.micro
+      KeyName: demo
+      SubnetId:
+        Ref: MyPrivateSubnet
+      SecurityGroupIds:
+        - !Ref PrivateSecurityGroup
+
+  Priv2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-531a4c3c
+      InstanceType: t2.micro
+      KeyName: demo
+      SubnetId:
+        Ref: MyPrivateSubnet
+      SecurityGroupIds:
+        - !Ref PrivateSecurityGroup
+
+  ElasticLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Instances:
+        - !Ref Priv1
+        - !Ref Priv2
+      Scheme: internet-facing
+      Subnets:
+        - !Ref MyPublicSubnet
+      SecurityGroups:
+        - !Ref PublicSecurityGroup
+      Listeners:
+        - LoadBalancerPort: '80'
+          InstancePort: '80'
+          Protocol: HTTP
+      HealthCheck:
+        Target: HTTP:80/
+        HealthyThreshold: '3'
+        UnhealthyThreshold: '5'
+        Interval: '30'
+        Timeout: '5'
+      ConnectionDrainingPolicy:
+        Enabled: 'true'
+        Timeout: '60'
