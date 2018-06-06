@@ -1,6 +1,6 @@
 {
 	"AWSTemplateFormatVersion": "2010-09-09",
-	"Description": "Example VPC that has two public subnets and two private subnets in different AZs NATs to enable instances in private subnets to access the internet and bastion hosts to moderate SSH access",
+	"Description": "Architecture with custom VPC, two load balanced EC2 instances with MysqlRDS",
 	"Parameters": {
 		"InstanceType": {
 			"Description": "WebServer EC2 instance type",
