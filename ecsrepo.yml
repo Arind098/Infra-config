@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is CF Template for npa--edoc user creation
+Parameters:
+  IAMusername:
+    Description: please choose the user who have cli access for this repository
+    Type: String
+Resources:
+  ECSRepository:
+    Type: 'AWS::ECR::Repository'
+    Properties:
+      RepositoryName: ecsrepo
+      RepositoryPolicyText:
+        Version: 2008-10-17
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Join 
+                  - ''
+                  - - 'arn:aws:iam::'
+                    - !Ref 'AWS::AccountId'
+                    - ':user/'
+                    - !Ref IAMusername
+            Action:
+              - 'ecr:GetDownloadUrlForLayer'
+              - 'ecr:BatchGetImage'
+              - 'ecr:BatchCheckLayerAvailability'
+              - 'ecr:PutImage'
+              - 'ecr:InitiateLayerUpload'
+              - 'ecr:UploadLayerPart'
+              - 'ecr:CompleteLayerUpload'
